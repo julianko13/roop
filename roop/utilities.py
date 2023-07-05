@@ -123,7 +123,12 @@ def is_video(video_path: str) -> bool:
         mimetype, _ = mimetypes.guess_type(video_path)
         return bool(mimetype and mimetype.startswith('video/'))
     return False
-
+    
+# Todo: check the images in folder
+def is_image_dir(dir_path: str) -> bool:
+    if os.path.isdir(dir_path):
+        return True
+    return False
 
 def conditional_download(download_directory_path: str, urls: List[str]) -> None:
     if not os.path.exists(download_directory_path):

@@ -2,13 +2,15 @@ from typing import Any, List, Callable
 import cv2
 import insightface
 import threading
-
+import time
+from more_itertools import chunked
 import roop.globals
 import roop.processors.frame.core
 from roop.core import update_status
 from roop.face_analyser import get_one_face, get_many_faces
 from roop.typing import Face, Frame
-from roop.utilities import conditional_download, resolve_relative_path, is_image, is_video
+from roop.utilities import conditional_download, resolve_relative_path, is_image, is_video, is_image_dir
+import platform
 
 FACE_SWAPPER = None
 THREAD_LOCK = threading.Lock()
@@ -38,8 +40,8 @@ def pre_start() -> bool:
     elif not get_one_face(cv2.imread(roop.globals.source_path)):
         update_status('No face in source path detected.', NAME)
         return False
-    if not is_image(roop.globals.target_path) and not is_video(roop.globals.target_path):
-        update_status('Select an image or video for target path.', NAME)
+    if not is_image(roop.globals.target_path) and not is_video(roop.globals.target_path) and not is_image_dir(roop.globals.target_path):
+        update_status('Select an image, image folder or video for target path.', NAME)
         return False
     return True
 
@@ -85,4 +87,14 @@ def process_image(source_path: str, target_path: str, output_path: str) -> None:
 
 
 def process_video(source_path: str, temp_frame_paths: List[str]) -> None:
-    roop.processors.frame.core.process_video(source_path, temp_frame_paths, process_frames)
+#macOS workaround to let ARC release memory or it crashs on memory limit. Not sure if there is a better way to handle concurrent.futures
+    if platform.system().lower() == 'darwin':
+        chunk_size = roop.globals.relief_count
+        frame_chunks = list(chunked(temp_frame_paths, chunk_size))
+        for frame_chunk in frame_chunks:
+            roop.processors.frame.core.process_video(source_path, frame_chunk, process_frames)
+            time.sleep(2)
+    else:
+        roop.processors.frame.core.process_video(source_path, temp_frame_paths, process_frames)
+   
+

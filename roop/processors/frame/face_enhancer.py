@@ -2,13 +2,13 @@ from typing import Any, List, Callable
 import cv2
 import threading
 import gfpgan
-
+import platform
 import roop.globals
 import roop.processors.frame.core
 from roop.core import update_status
 from roop.face_analyser import get_one_face
 from roop.typing import Frame, Face
-from roop.utilities import conditional_download, resolve_relative_path, is_image, is_video
+from roop.utilities import conditional_download, resolve_relative_path, is_image, is_video, is_image_dir
 
 FACE_ENHANCER = None
 THREAD_SEMAPHORE = threading.Semaphore()
@@ -23,7 +23,10 @@ def get_face_enhancer() -> Any:
         if FACE_ENHANCER is None:
             model_path = resolve_relative_path('../models/GFPGANv1.4.pth')
             # todo: set models path https://github.com/TencentARC/GFPGAN/issues/399
-            FACE_ENHANCER = gfpgan.GFPGANer(model_path=model_path, upscale=1) # type: ignore[attr-defined]
+            if platform.system().lower() == 'darwin':
+                FACE_ENHANCER = gfpgan.GFPGANer(model_path=model_path, upscale=1,device='mps') # type: ignore[attr-defined]
+            else:
+                FACE_ENHANCER = gfpgan.GFPGANer(model_path=model_path, upscale=1)
     return FACE_ENHANCER
 
 
@@ -34,8 +37,8 @@ def pre_check() -> bool:
 
 
 def pre_start() -> bool:
-    if not is_image(roop.globals.target_path) and not is_video(roop.globals.target_path):
-        update_status('Select an image or video for target path.', NAME)
+    if not is_image(roop.globals.target_path) and not is_video(roop.globals.target_path) and not is_image_dir(roop.globals.target_path):
+        update_status('Select an image, image dir or video for target path.', NAME)
         return False
     return True
 

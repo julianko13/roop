@@ -3,6 +3,7 @@ from typing import List
 source_path = None
 target_path = None
 output_path = None
+relief_count = 50
 frame_processors: List[str] = []
 keep_fps = None
 keep_audio = None
