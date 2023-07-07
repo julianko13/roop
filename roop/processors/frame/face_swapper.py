@@ -91,9 +91,10 @@ def process_video(source_path: str, temp_frame_paths: List[str]) -> None:
     if platform.system().lower() == 'darwin':
         chunk_size = roop.globals.relief_count
         frame_chunks = list(chunked(temp_frame_paths, chunk_size))
-        for frame_chunk in frame_chunks:
-            roop.processors.frame.core.process_video(source_path, frame_chunk, process_frames)
-            time.sleep(2)
+        for index, frame_chunk in enumerate(frame_chunks):
+        current = chunk_size * index
+        roop.processors.frame.core.process_video(source_path, frame_chunk, process_frames, total, current)
+        time.sleep(2)
     else:
         roop.processors.frame.core.process_video(source_path, temp_frame_paths, process_frames)
    
