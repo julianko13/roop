@@ -109,7 +109,7 @@ def clean_temp(target_path: str) -> None:
 
 def has_image_extension(image_path: str) -> bool:
     return image_path.lower().endswith(('png', 'jpg', 'jpeg', 'webp'))
-
+ 
 
 def is_image(image_path: str) -> bool:
     if image_path and os.path.isfile(image_path):
@@ -123,12 +123,13 @@ def is_video(video_path: str) -> bool:
         mimetype, _ = mimetypes.guess_type(video_path)
         return bool(mimetype and mimetype.startswith('video/'))
     return False
-    
-# Todo: check the images in folder
+
 def is_image_dir(dir_path: str) -> bool:
     if os.path.isdir(dir_path):
-        return True
-    return False
+        for filename in os.listdir(dir_path):
+            if is_image(os.path.join(dir_path, filename)):
+                return True
+        return False
 
 def conditional_download(download_directory_path: str, urls: List[str]) -> None:
     if not os.path.exists(download_directory_path):
