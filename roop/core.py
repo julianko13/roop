@@ -33,11 +33,12 @@ warnings.filterwarnings('ignore', category=UserWarning, module='torchvision')
 
 def parse_args() -> None:
     signal.signal(signal.SIGINT, lambda signal_number, frame: destroy())
-    program = argparse.ArgumentParser(formatter_class=lambda prog: argparse.HelpFormatter(prog, max_help_position=100))
+    program = argparse.ArgumentParser()
     program.add_argument('-s', '--source', help='select an source image', dest='source_path')
     program.add_argument('-t', '--target', help='select an target image or video', dest='target_path')
     program.add_argument('-o', '--output', help='select output file or directory', dest='output_path')
-    program.add_argument('--frame-processor', help='frame processors (choices: face_swapper, face_enhancer, ...)', dest='frame_processor', default=['face_swapper'], nargs='+')
+    program.add_argument('--frame-processor', help='pipeline of frame processors', dest='frame_processor', default=['face_swapper'], choices=['face_swapper', 'face_enhancer'], nargs='+')
+    program.add_argument('--use-alignments', help='use the alignment files for target faces', dest='manual_target', action='store_true', default=False)
     program.add_argument('--keep-fps', help='keep original fps', dest='keep_fps', action='store_true', default=False)
     program.add_argument('--keep-audio', help='keep original audio', dest='keep_audio', action='store_true', default=True)
     program.add_argument('--keep-frames', help='keep temporary frames', dest='keep_frames', action='store_true', default=False)
@@ -45,15 +46,22 @@ def parse_args() -> None:
     program.add_argument('--video-encoder', help='adjust output video encoder', dest='video_encoder', default='libx264', choices=['libx264', 'libx265', 'libvpx-vp9'])
     program.add_argument('--video-quality', help='adjust output video quality', dest='video_quality', type=int, default=18, choices=range(52), metavar='[0-51]')
     program.add_argument('--max-memory', help='maximum amount of RAM in GB', dest='max_memory', type=int, default=suggest_max_memory())
-    program.add_argument('--execution-provider', help='available execution provider (choices: cpu, ...)', dest='execution_provider', default=['cpu'], choices=suggest_execution_providers(), nargs='+')
+    program.add_argument('--execution-provider', help='execution provider', dest='execution_provider', default=['cpu'], choices=suggest_execution_providers(), nargs='+')
     program.add_argument('--execution-threads', help='number of execution threads', dest='execution_threads', type=int, default=suggest_execution_threads())
     program.add_argument('-v', '--version', action='version', version=f'{roop.metadata.name} {roop.metadata.version}')
-    program.add_argument('--relief_count',help='frames to sleep when converting on macOS', dest='relief_count',type=int,default=roop.globals.relief_count)
+    program.add_argument('--relief_count',help='frames to stop converting for ARC macOS', dest='relief_count',type=int,default=roop.globals.relief_count)
+    # register deprecated args
+    program.add_argument('-f', '--face', help=argparse.SUPPRESS, dest='source_path_deprecated')
+    program.add_argument('--cpu-cores', help=argparse.SUPPRESS, dest='cpu_cores_deprecated', type=int)
+    program.add_argument('--gpu-vendor', help=argparse.SUPPRESS, dest='gpu_vendor_deprecated')
+    program.add_argument('--gpu-threads', help=argparse.SUPPRESS, dest='gpu_threads_deprecated', type=int)
+
     args = program.parse_args()
 
     roop.globals.source_path = args.source_path
     roop.globals.target_path = args.target_path
     roop.globals.output_path = normalize_output_path(roop.globals.source_path, roop.globals.target_path, args.output_path)
+    roop.globals.manual_target = args.manual_target
     roop.globals.frame_processors = args.frame_processor
     roop.globals.headless = args.source_path or args.target_path or args.output_path
     roop.globals.keep_fps = args.keep_fps
@@ -65,7 +73,28 @@ def parse_args() -> None:
     roop.globals.max_memory = args.max_memory
     roop.globals.execution_providers = decode_execution_providers(args.execution_provider)
     roop.globals.execution_threads = args.execution_threads
-    roop.globals.relief_count = args.relief_count
+
+    # translate deprecated args
+    if args.source_path_deprecated:
+        print('\033[33mArgument -f and --face are deprecated. Use -s and --source instead.\033[0m')
+        roop.globals.source_path = args.source_path_deprecated
+        roop.globals.output_path = normalize_output_path(args.source_path_deprecated, roop.globals.target_path, args.output_path)
+    if args.cpu_cores_deprecated:
+        print('\033[33mArgument --cpu-cores is deprecated. Use --execution-threads instead.\033[0m')
+        roop.globals.execution_threads = args.cpu_cores_deprecated
+    if args.gpu_vendor_deprecated == 'apple':
+        print('\033[33mArgument --gpu-vendor apple is deprecated. Use --execution-provider coreml instead.\033[0m')
+        roop.globals.execution_providers = decode_execution_providers(['coreml'])
+    if args.gpu_vendor_deprecated == 'nvidia':
+        print('\033[33mArgument --gpu-vendor nvidia is deprecated. Use --execution-provider cuda instead.\033[0m')
+        roop.globals.execution_providers = decode_execution_providers(['cuda'])
+    if args.gpu_vendor_deprecated == 'amd':
+        print('\033[33mArgument --gpu-vendor amd is deprecated. Use --execution-provider cuda instead.\033[0m')
+        roop.globals.execution_providers = decode_execution_providers(['rocm'])
+    if args.gpu_threads_deprecated:
+        print('\033[33mArgument --gpu-threads is deprecated. Use --execution-threads instead.\033[0m')
+        roop.globals.execution_threads = args.gpu_threads_deprecated
+
 
 def encode_execution_providers(execution_providers: List[str]) -> List[str]:
     return [execution_provider.replace('ExecutionProvider', '').lower() for execution_provider in execution_providers]
@@ -98,9 +127,7 @@ def limit_resources() -> None:
     # prevent tensorflow memory leak
     gpus = tensorflow.config.experimental.list_physical_devices('GPU')
     for gpu in gpus:
-        tensorflow.config.experimental.set_virtual_device_configuration(gpu, [
-            tensorflow.config.experimental.VirtualDeviceConfiguration(memory_limit=1024)
-        ])
+        tensorflow.config.experimental.set_memory_growth(gpu, True)
     # limit memory usage
     if roop.globals.max_memory:
         memory = roop.globals.max_memory * 1024 ** 3
@@ -150,7 +177,6 @@ def start() -> None:
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir)
         shutil.copytree(roop.globals.target_path, temp_dir)
-        update_status('Temp dir', temp_dir)
         temp_frame_paths = get_temp_frame_paths(roop.globals.target_path)
         for frame_processor in get_frame_processors_modules(roop.globals.frame_processors):
             update_status('Progressing...', frame_processor.NAME)
@@ -162,23 +188,24 @@ def start() -> None:
         clean_temp(roop.globals.target_path)
         return
     # process image to image
-    if has_image_extension(roop.globals.target_path):
+    elif has_image_extension(roop.globals.target_path):
         if predict_image(roop.globals.target_path):
             destroy()
         shutil.copy2(roop.globals.target_path, roop.globals.output_path)
         for frame_processor in get_frame_processors_modules(roop.globals.frame_processors):
             update_status('Progressing...', frame_processor.NAME)
             frame_processor.process_image(roop.globals.source_path, roop.globals.output_path, roop.globals.output_path)
-            frame_processor.post_process()
             release_resources()
         if is_image(roop.globals.target_path):
             update_status('Processing to image succeed!')
         else:
             update_status('Processing to image failed!')
         return
+
     # process image to videos
     if predict_video(roop.globals.target_path):
-        destroy()
+        if predict_video(roop.globals.target_path):
+            destroy()
     update_status('Creating temp resources...')
     create_temp(roop.globals.target_path)
     update_status('Extracting frames...')
@@ -187,7 +214,6 @@ def start() -> None:
     for frame_processor in get_frame_processors_modules(roop.globals.frame_processors):
         update_status('Progressing...', frame_processor.NAME)
         frame_processor.process_video(roop.globals.source_path, temp_frame_paths)
-        frame_processor.post_process()
         release_resources()
     # handles fps
     if roop.globals.keep_fps:
@@ -213,7 +239,6 @@ def start() -> None:
         update_status('Processing to video succeed!')
     else:
         update_status('Processing to video failed!')
-
 
 def destroy() -> None:
     if roop.globals.target_path:
