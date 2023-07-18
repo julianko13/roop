@@ -1,3 +1,4 @@
+import threading
 from typing import Any
 import numpy as np
 import insightface
@@ -10,14 +11,16 @@ import os
 FACE_ALIGNMENTS = None
 
 FACE_ANALYSER = None
+THREAD_LOCK = threading.Lock()
 
 
 def get_face_analyser() -> Any:
     global FACE_ANALYSER
 
-    if FACE_ANALYSER is None:
-        FACE_ANALYSER = insightface.app.FaceAnalysis(name='buffalo_l', providers=roop.globals.execution_providers)
-        FACE_ANALYSER.prepare(ctx_id=0, det_size=(640, 640))
+    with THREAD_LOCK:
+        if FACE_ANALYSER is None:
+            FACE_ANALYSER = insightface.app.FaceAnalysis(name='buffalo_l', providers=roop.globals.execution_providers)
+            FACE_ANALYSER.prepare(ctx_id=0, det_size=(640, 640))
     return FACE_ANALYSER
     
 def get_face_alignments() -> Any:
@@ -33,7 +36,7 @@ def get_face_alignments() -> Any:
 def get_one_face(frame: Frame) -> Any:
     face = get_face_analyser().get(frame)
     try:
-        return max(face, key=lambda x: x.bbox[0])
+        return min(face, key=lambda x: x.bbox[0])
     except ValueError:
         return None
 #get one face for target with alignment file

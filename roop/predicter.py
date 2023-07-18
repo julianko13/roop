@@ -1,6 +1,6 @@
 import numpy
-import opennsfw2
 import os
+import opennsfw2
 from PIL import Image
 
 from roop.typing import Frame
@@ -16,11 +16,11 @@ def predict_frame(target_frame: Frame) -> bool:
     _, probability = model.predict(views)[0]
     return probability > MAX_PROBABILITY
 
-
 def predict_image(target_path: str) -> bool:
     return opennsfw2.predict_image(target_path) > MAX_PROBABILITY
 
 def predict_images(target_path: str) -> bool:
+    return False
     image_files = []
 
     for root, dirs, files in os.walk(target_path):

@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import Any, List, Callable
 import cv2
 import insightface
 import threading
@@ -15,6 +15,16 @@ from roop.utilities import conditional_download, resolve_relative_path, is_image
 FACE_SWAPPER = None
 THREAD_LOCK = threading.Lock()
 NAME = 'ROOP.FACE-SWAPPER'
+
+
+def get_face_swapper() -> Any:
+    global FACE_SWAPPER
+
+    with THREAD_LOCK:
+        if FACE_SWAPPER is None:
+            model_path = resolve_relative_path('../models/inswapper_128.onnx')
+            FACE_SWAPPER = insightface.model_zoo.get_model(model_path, providers=roop.globals.execution_providers)
+    return FACE_SWAPPER
 
 
 def pre_check() -> bool:
@@ -36,14 +46,10 @@ def pre_start() -> bool:
     return True
 
 
-def get_face_swapper() -> Any:
+def post_process() -> None:
     global FACE_SWAPPER
 
-    with THREAD_LOCK:
-        if FACE_SWAPPER is None:
-            model_path = resolve_relative_path('../models/inswapper_128.onnx')
-            FACE_SWAPPER = insightface.model_zoo.get_model(model_path, providers=roop.globals.execution_providers)
-    return FACE_SWAPPER
+    FACE_SWAPPER = None
 
 
 def swap_face(source_face: Face, target_face: Face, temp_frame: Frame) -> Frame:
@@ -63,27 +69,23 @@ def process_frame(source_face: Face, temp_frame: Frame) -> Frame:
     return temp_frame
 
 
-def process_frames(source_path: str, temp_frame_paths: List[str], progress: Any = None) -> None:
+def process_frames(source_path: str, temp_frame_paths: List[str], update: Callable[[], None]) -> None:
     source_face = get_one_face(cv2.imread(source_path))
     isDir = is_image_dir(roop.globals.target_path)
     for temp_frame_path in temp_frame_paths:
         temp_frame = cv2.imread(temp_frame_path)
         if roop.globals.manual_target and isDir:
             target_face = get_one_face_from_alignment(temp_frame_path)
-            try:
+            if target_face:
                 result = swap_face(source_face, target_face, temp_frame)
                 cv2.imwrite(temp_frame_path, result)
-            except Exception as exception:
-                pass
+            else:
+                cv2.imwrite(temp_frame_path, temp_frame)
         else:
-            try:
-                result = process_frame(source_face, temp_frame)
-                cv2.imwrite(temp_frame_path, result)
-            except Exception as exception:
-                print(exception)
-                pass
-        if progress:
-            progress.update(1)
+            result = process_frame(source_face, temp_frame)
+            cv2.imwrite(temp_frame_path, result)
+        if update:
+            update()
 
 
 def process_image(source_path: str, target_path: str, output_path: str) -> None:

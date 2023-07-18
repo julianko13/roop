@@ -1,8 +1,9 @@
 from typing import Any, List, Callable
 import cv2
 import threading
-import gfpgan
 import platform
+import gfpgan
+
 import roop.globals
 import roop.processors.frame.core
 from roop.core import update_status
@@ -38,7 +39,7 @@ def pre_check() -> bool:
 
 def pre_start() -> bool:
     if not is_image(roop.globals.target_path) and not is_video(roop.globals.target_path) and not is_image_dir(roop.globals.target_path):
-        update_status('Select an image, image dir or video for target path.', NAME)
+        update_status('Select an image or video for target path.', NAME)
         return False
     return True
 

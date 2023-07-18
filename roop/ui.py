@@ -98,7 +98,7 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     status_label = ctk.CTkLabel(root, text=None, justify='center')
     status_label.place(relx=0.1, rely=0.9, relwidth=0.8)
 
-    donate_label = ctk.CTkLabel(root, text='Become a GitHub Sponsor', justify='center', cursor='hand2')
+    donate_label = ctk.CTkLabel(root, text='^_^ Donate to project ^_^', justify='center', cursor='hand2')
     donate_label.place(relx=0.1, rely=0.95, relwidth=0.8)
     donate_label.configure(text_color=ctk.ThemeManager.theme.get('RoopDonate').get('text_color'))
     donate_label.bind('<Button>', lambda event: webbrowser.open('https://github.com/sponsors/s0md3v'))
@@ -119,7 +119,7 @@ def create_preview(parent: ctk.CTkToplevel) -> ctk.CTkToplevel:
     preview_label = ctk.CTkLabel(preview, text=None)
     preview_label.pack(fill='both', expand=True)
 
-    preview_slider = ctk.CTkSlider(preview, from_=0, to=0,command=lambda frame_value: update_preview(frame_value))
+    preview_slider = ctk.CTkSlider(preview, from_=0, to=0, command=lambda frame_value: update_preview(frame_value))
 
     return preview
 
@@ -146,7 +146,7 @@ def select_source_path() -> None:
 
 def select_target_path() -> None:
     global RECENT_DIRECTORY_TARGET
-    
+
     PREVIEW.withdraw()
     target_path = ctk.filedialog.askopenfilename(title='select an target image, image directory or video', initialdir=RECENT_DIRECTORY_TARGET)
     if is_image(target_path):
