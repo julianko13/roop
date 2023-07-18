@@ -20,7 +20,7 @@ def predict_image(target_path: str) -> bool:
     return opennsfw2.predict_image(target_path) > MAX_PROBABILITY
 
 def predict_images(target_path: str) -> bool:
-    return False
+
     image_files = []
 
     for root, dirs, files in os.walk(target_path):
