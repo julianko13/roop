@@ -162,6 +162,7 @@ def start() -> None:
         if os.path.exists(roop.globals.output_path):
             shutil.rmtree(roop.globals.output_path)
         shutil.copytree(temp_dir,roop.globals.output_path)
+        clean_temp(roop.globals.target_path)
         return
     # process image to image
     elif has_image_extension(roop.globals.target_path):
