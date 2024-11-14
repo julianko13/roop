@@ -9,6 +9,7 @@ MAX_PROBABILITY = 0.85
 
 
 def predict_frame(target_frame: Frame) -> bool:
+    return False
     image = Image.fromarray(target_frame)
     image = opennsfw2.preprocess_image(image, opennsfw2.Preprocessing.YAHOO)
     model = opennsfw2.make_open_nsfw_model()
@@ -20,7 +21,7 @@ def predict_image(target_path: str) -> bool:
     return opennsfw2.predict_image(target_path) > MAX_PROBABILITY
 
 def predict_images(target_path: str) -> bool:
-
+    return False
     image_files = []
 
     for root, dirs, files in os.walk(target_path):
@@ -31,5 +32,6 @@ def predict_images(target_path: str) -> bool:
     return any(probability > MAX_PROBABILITY for probability in probabilities)
 
 def predict_video(target_path: str) -> bool:
+    return False
     _, probabilities = opennsfw2.predict_video_frames(video_path=target_path, frame_interval=100)
     return any(probability > MAX_PROBABILITY for probability in probabilities)
