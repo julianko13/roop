@@ -15,7 +15,7 @@ from roop.utilities import conditional_download, resolve_relative_path, is_image
 FACE_SWAPPER = None
 THREAD_LOCK = threading.Lock()
 NAME = 'ROOP.FACE-SWAPPER'
-
+face_counter = 0
 
 def get_face_swapper() -> Any:
     global FACE_SWAPPER
@@ -57,6 +57,8 @@ def swap_face(source_face: Face, target_face: Face, temp_frame: Frame) -> Frame:
 
 
 def process_frame(source_face: Face, temp_frame: Frame) -> Frame:
+    global face_counter
+    
     if roop.globals.many_faces:
         many_faces = get_many_faces(temp_frame)
         if many_faces:
@@ -65,6 +67,8 @@ def process_frame(source_face: Face, temp_frame: Frame) -> Frame:
     else:
         target_face = get_one_face(temp_frame)
         if target_face:
+            face_counter += 1
+            #print("face processed", face_counter)
             temp_frame = swap_face(source_face, target_face, temp_frame)
     return temp_frame
 
